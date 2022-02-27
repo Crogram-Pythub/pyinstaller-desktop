@@ -2,7 +2,9 @@
 
 import os.path
 from tkinter import (Button, Checkbutton, Entry, IntVar, Label, LabelFrame, StringVar, filedialog)
-
+from os import system
+from threading import Thread
+from utils import set_window_center
 
 class View(object):
     def __init__(self, master=None):
@@ -12,13 +14,20 @@ class View(object):
 
     def init_view(self):
         '''基本框架'''
-        self.frm_project = LabelFrame(self.root, text='项目')
-        self.frm_config = LabelFrame(self.root, text='配置')
-        self.frm_operate = LabelFrame(self.root, text='操作')
-        self.frm_status = LabelFrame(self.root, text='状态')
+        self.frm_main = LabelFrame(self.root, borderwidth=0)
+        self.frm_main.pack( side='left', fill='y')
 
-        self.frm_project.pack(expand='yes', side='top',
-                              fill='both', padx=15, pady=10)
+        self.frm_advance = LabelFrame(self.root, text='高级选项')
+        # self.frm_advance.pack(expand='yes', side='right', fill='both', padx=15, pady=10)
+        # self.frm_2 = LabelFrame(self.frm_advance, text='高级配置', width=300)
+        # self.frm_2.pack(expand='yes', side='top', fill='both', padx=15, pady=10)
+
+        self.frm_project = LabelFrame(self.frm_main, text='项目信息')
+        self.frm_config = LabelFrame(self.frm_main, text='配置信息')
+        self.frm_operate = LabelFrame(self.frm_main, text='操作')
+        self.frm_status = LabelFrame(self.frm_main, text='状态')
+
+        self.frm_project.pack(expand='yes', side='top', fill='both', padx=15, pady=10)
         self.frm_config.pack(fill='x', padx=15, pady=10)
         self.frm_operate.pack(fill='x', padx=15, pady=10)
         self.frm_status.pack(side='bottom', fill='x', padx=15, pady=10)
@@ -68,8 +77,11 @@ class View(object):
         self.cfg_onedir = IntVar(value=0)
         self.cfg_noconsole = IntVar(value=1)
         self.cfg_clean = IntVar(value=1)
+        self.cfg_upx = IntVar(value=1) # UPX 默认开启
         self.cfg_rename = IntVar()
         self.cfg_exe_name = StringVar()
+        # 自定义配置文件
+        self.cfg_specfile = StringVar(value='build.spec')
         # 子配置框架
         self.frm_config_base = LabelFrame(
             self.frm_config, text='基本', borderwidth=0)
@@ -80,11 +92,16 @@ class View(object):
         self.frm_config_other = LabelFrame(
             self.frm_config, text='其它', borderwidth=0)
         self.frm_config_other.pack(fill='x', padx=10, pady=5, ipady=5)
+        self.frm_config_spec = LabelFrame(self.frm_config, text='配置文件', borderwidth=0)
+        self.frm_config_spec.pack(fill='x', padx=10, pady=5, ipady=5)
+
         # 定义按钮
         self.btn_noconsole = Checkbutton(
             self.frm_config_base, text='关闭控制台', variable=self.cfg_noconsole)
         self.btn_clean = Checkbutton(
             self.frm_config_base, text='构建前清理', variable=self.cfg_clean)
+        self.btn_upx = Checkbutton(
+            self.frm_config_base, text='UPX压缩', variable=self.cfg_upx)
         self.btn_isonefile = Checkbutton(
             self.frm_config_exe, text='独立执行文件', variable=self.cfg_onefile)
         self.btn_isonedir = Checkbutton(
@@ -94,13 +111,18 @@ class View(object):
         self.entry_rename = Entry(
             self.frm_config_other, textvariable=self.cfg_exe_name)
 
+        # self.btn_rename = Checkbutton(self.frm_config_spec, text='生成配置文件', variable=self.cfg_specfile)
+        self.entry_specfile = Entry(self.frm_config_spec, textvariable=self.cfg_specfile)
+
         # 放置按钮
         self.btn_isonefile.pack(side='left', fill='x')
         self.btn_isonedir.pack(side='left', fill='x')
         self.btn_noconsole.pack(side='left', fill='x')
         self.btn_clean.pack(side='left', fill='x')
+        self.btn_upx.pack(side='left', fill='x')
         self.btn_rename.pack(side='left', fill='x')
         self.entry_rename.pack(fill='x')
+        self.entry_specfile.pack(fill='x')
 
         # 变量自动切换操作
         self.cfg_onefile.trace('w', self.cfg_onefile_trace)
@@ -125,10 +147,14 @@ class View(object):
             self.frm_operate, text='清理', command=self.fn_clear)
         self.btn_reset = Button(
             self.frm_operate, text='重置', command=self.fn_reset)
+        self.btn_advance = Button(
+            self.frm_operate, text='高级选项', command=self.fn_toggle_advance)
+
         # 放置按钮
         self.btn_build.pack(fill='x', side='left')
         self.btn_clear.pack(fill='x', side='left')
         self.btn_reset.pack(fill='x', side='left')
+        self.btn_advance.pack(fill='x', side='right')
 
     def init_status(self):
         '''状态栏'''
@@ -137,7 +163,31 @@ class View(object):
 
     def fn_build(self):
         '''生成可执行文件'''
-        pass
+        if not self.status_build:
+            thread_build = Thread(target=self.fn_thread)
+            thread_build.setDaemon(True)
+            thread_build.start()
+        else:
+            self.label_status['text'] = '正在打包，请稍后再操作！'
+
+    def fn_thread(self):
+        '''线程执行生成动作'''
+        if len(self.entry_value_list[0].get()) == 0:
+            self.label_status['text'] = '请选择源文件'
+            return
+        self.status_build = True
+        cmd = self.fn_build_cmd()
+        print(cmd)
+        self.label_status['text'] = '正在打包，请稍等。。。'
+        try:
+            # PyInstaller.__main__.run(cmd)
+            system(' '.join(cmd))
+            # call(split(' '.join(cmd)), shell=True)
+            self.status_build = False
+            self.label_status['text'] = '打包成功！'
+        except Exception as e:
+            self.label_status['text'] = str(e)
+            self.status_build = False
 
     def fn_clear(self):
         '''清理生成文件'''
@@ -151,8 +201,18 @@ class View(object):
         self.cfg_onefile.set(1)
         self.cfg_noconsole.set(1)
         self.cfg_clean.set(1)
+        self.cfg_upx.set(1)
         self.cfg_rename.set(0)
         self.cfg_exe_name.set('')
+
+    def fn_toggle_advance(self):
+        '''切换高级选项界面'''
+        if self.frm_advance.winfo_ismapped():
+            set_window_center(self.root, width=(self.root.winfo_width() - 400))
+            self.frm_advance.pack_forget()
+        else:
+            set_window_center(self.root, width=(self.root.winfo_width() + 400))
+            self.frm_advance.pack(expand='yes', side='right', fill='both', padx=15, pady=10)
 
     def fn_select_main(self):
         '''选择源文件'''
@@ -204,6 +264,8 @@ class View(object):
         cmds = []
         cmds.append('pyinstaller')
         cmds.append('--windowed')
+        cmds.append('-y')
+        cmds.append('--noconfirm')
         # cmds.append('--filenames=build.spec')
         # cmds.append('/usr/local/bin/pyinstaller')
 
@@ -215,6 +277,9 @@ class View(object):
         if self.cfg_clean.get() == 1:
             cmds.append('--clean')
             cmds.append('--noconfirm')
+
+        if self.cfg_upx.get() == 0:
+            cmds.append('--noupx')
 
         if self.cfg_noconsole.get() == 1:
             cmds.append('--noconsole')
@@ -234,8 +299,8 @@ class View(object):
 
         if len(self.entry_value_list[0].get()) > 0:
             cmds.append(self.entry_value_list[0].get())
+        # print(' '.join(cmds))
         return cmds
-        # return ' '.join(cmds)
 
 if __name__ == '__main__':
     from tkinter import Tk
