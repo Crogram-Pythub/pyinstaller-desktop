@@ -1,7 +1,3 @@
 # _*_ coding:utf-8 _*_
 
-pyinstaller \
-            --clean\
-            --noconfirm\
-            -w\
-            build.spec
+pyinstaller -D -w -y --noconfirm build.spec
